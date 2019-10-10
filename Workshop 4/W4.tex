@@ -182,7 +182,7 @@ When linearising around the equilibrium point $(\theta^{*}, \psi^{*}, \dot{\thet
 \end{bmatrix}
 \end{align*}
 
-Setting the centre of gravity $G$ coordinates, $y_G = z_G = 0$ as the reference point for the Quanser Aero body, this simplifies the above state space matrices to the system below, where it resembles the mechanically derived system from the lab guide,
+Setting the centre of mass $G$ coordinates, $y_G = z_G = 0$ as the reference point for the Quanser Aero body, this simplifies the above state space matrices to the system below, where it resembles the mechanically derived system from the lab guide,
 \begin{align*}
 \mathbf{A} = \begin{bmatrix}
     0 & 0 & 1 & 0\\
@@ -235,10 +235,8 @@ Substituting our empirical parameters in Section \ref{section:coefficients}, the
 \subsection{System Analysis}
 \colorbox{yellow}{Enter in observability/controllabiity calcs, Kalman decomp stuff}
 
-\newpage
-\section{PID Controller} %%%%% PID %%%%%%%%%%
-
-\subsection{PID Design and Simulation}
+\newpage %%%%% PID %%%%%%%%%%
+\section{PID Controller Design and Simulation}
 A decoupling approach was used in designing the PID controllers so that the pitch and yaw motor input voltages are controlled separately. For this part we followed the Quanser Aero Lab Guide in implementing a modified PID controller, where only the negative voltage is used in feedback and a derivative term (acting as a high pass filter) is used to suppress measurement noise. In essence we aimed to design a proportional velocity (PV) controller with added integration $K_i$.\\ 
 
 We used the transfer functions for the respective outputs pitch and yaw angles with respect to pitch and yaw motor input voltages to simulate the PID controllers. They are Eq \ref{eq:PitchVp}-\ref{eq:YawVy} below.
@@ -259,33 +257,103 @@ Percentage overshoot $PO$ and peak time $t_p$ in the second order transfer funct
     PO &= 100 e^{-\frac{\pi \zeta}{\sqrt{1 - \zeta^2}}}\\
     t_p &= \frac{\pi}{\sqrt{1 - \zeta^2}}
 \end{align*}
-Starting at our maximum specification of percentage overshoot $PO = 7.5$\% and peak time $t_p = 2$s, we first gradually reduced $t_p$ to reduce the oscillations in the response to hit a relatively steady state. Then we reduced $PO$ to reduce the steady state error $e_{ss}$. Figures X-Y show the results of our simulations.\\ \textit{See Appendix Section X for the Simulink model.}
+Starting at our maximum specification of percentage overshoot $PO = 7.5$\% and peak time $t_p = 2$s, we first gradually reduced $t_p$ to reduce the oscillations in the response to hit a relatively steady state. Then we reduced $PO$ to reduce the steady state error $e_{ss}$. Figures X-Y show the results of our simulations.\\ \textit{See Appendix Section \ref{W4PIDsim} for the Simulink model.}\\
+\colorbox{yellow}{Include graphs}
 
-\subsection{PID Quanser Aero Implementation}
+\newpage
+\section{PID Quanser Aero Implementation}
+We first tested our PID design that was successful in simulation on the Quanser Aero. The system responses for pitch $\theta$ and yaw $\psi$ outputs are shown in Figures X and Y.\\
+\colorbox{yellow}{Include graphs}\\
+
+The results from this were not desirable and was far beyond our required specifications. \textcolor{blue}{Comment about graph and related params... $t_p$ and $PO$...} We therefore went ahead and tuned the PID values based on the real time response. Our results from the tuning gave better results that sat within the system specifications. Figures XX and YY show the pitch and yaw axis outputs.\\
+\colorbox{yellow}{Include graphs}\\
+
+Some comments about the overall results are:
+\begin{itemize}
+    \item %P and Y stutters
+    The graph shows clearly that the system "stutters" a little, seeming to be out of control at several points within it's response independent to the axis' own controlled motion e.g. XX second in Figure (pitch) and YY second in Figure (yaw). This outcome is in fact attributed greatly to the decoupling design of the two axis separately. We can see from the example given at XX seconds in Figure (pitch), the yaw axis in fact has been provided a strong input voltage to ramp up to $45^\circ$ and this motion affects the pitch axis and vice versa with a pitch axis motion affecting the yaw axis response. The simulation showed less of the stutter, which indicates that the model for inertia and system dynamics is flawed. A primary suspect is the negligence of the motor orientations and how this leads to inertia imbalances and different aerodynamics.
+    \item %ki
+    $K_i$'s value affected the steady state value that the system settled at. However, with a larger $K_i$ the system oscillates more and would require a larger $K_d$ and relatively smaller $K_p$ to smooth things out. The trade-off for this is the $t_p$ for the $PO$. Here we managed to find a balancing point between the trade-offs that match our system response requirements.
+\end{itemize}
 
 %%%%%%%%%%%% Controller/Observer %%%%%%%%%%%%%%%%
 \newpage
 \section{Controller/Observer Pair Design}
 % Design 
+With the linearisation of the system undertaken in Section 2.2, the separation principle (of estimation and control) holds and allows the design of an estimator and controller independently without one affecting stability of the other in the combined system.
 
 \subsection{Full State Feedback Controller Design and Simulation}
 %LQR simulations 
 
 \subsection{Observer Design}
+An observer is used to estimate unmeasured states to allow for the full state to be used by a controller.
 
-\subsubsection{Full State Observer}
+\subsubsection{Full Order Observer}
+The full order observer (FOO) estimates all system states whether or not sensors are measuring a subset of state(s).
+The FOO takes the form
+\begin{equation*}
+    \dot{\hat{x}}(t) = A\hat{x}(t) + Bu(t) + J(y(t) - C\hat{x}(t)) = (A - J C)\hat{x}(t) + Bu(t) + Jy(t)
+\end{equation*}
+such that the estimation error $\tilde{x}$ = x - $\hat{x}$ decays to zero. The rate of decay of the estimation error depends on (A-JC). As the observability matrix has full column rank, $\Gamma$o[A,C] = 4 the system is fully observable and thus,the observer gain matrix (J) can be chosen to arbitrarily assign (A-JC), controlling the error dynamics.
 
-\subsubsection{Reduced State Observer}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=15cm]{plots/Full-Order-Observer.PNG}
+    \caption{Simulink implementation of the Full Order Observer}
+    \label{fig:W4_FOO}
+\end{figure}
+
+
+
+
+
+\subsubsection{Reduced Order Observer}
+The reduced order observer (ROO) makes marked improvement on the full order observer (FOO). The ROO estimates only the unmeasured states, whilst passing the measured states.
+The ROO takes the form
+\begin{equation*}
+    \hat{x}_b(t) = z(t) + L_r x_a(t)
+\end{equation*}
+\begin{equation*}
+    \dot{\hat{z}}(t) = (A_{bb} - L_r A_{ab})z(t) + x_a [ (A_{bb} - L_r A_{ab})L_r + A_{ba} - L_r A_{aa} ] + (B_b-L_rB_a)u(t)
+\end{equation*}
+where the unmeasured (estimated) system is extracted from the whole via
+\begin{equation*}
+    \mathbf{x(t)} = \begin{bmatrix}
+        x_a(t) \\ x_b(t)
+    \end{bmatrix}
+    = \begin{bmatrix}
+        \theta \\ \phi \\ \dot{\theta} \\ \dot{\phi}
+    \end{bmatrix}
+    
+    \text{, }
+    \mathbf{A} = \begin{bmatrix}
+        A_{aa} & A_{ab} \\ A_{ba} & A_{bb}
+    \end{bmatrix}
+    = \begin{bmatrix}
+        0 & 0 & A_{ab} \\ A_{ba} & A_{bb}
+    \end{bmatrix}
+    
+\end{equation*}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=15cm]{plots/Reduced-Order-Observer.PNG}
+    \caption{Simulink implementation of the Reduced Order Observer}
+    \label{fig:W4_ROO}
+\end{figure}
+
 
 \section{Controller/Observer Pair Quanser Aero Implementation}
+
 \subsection{Full State Feedback Controller Implementation}
 % Quanser
 
 \subsection{Quanser Aero Observer Implementation}
 
-\subsubsection{Full State Observer}
+\subsubsection{Full Order Observer}
 
-\subsubsection{Reduced State Observer}
+\subsubsection{Reduced Order Observer}
 
 %%%%%%%%%%%% BEGIN CONCLUSION %%%%%%%%%%%%%%%%
 \section{Conclusions}
@@ -305,5 +373,13 @@ Starting at our maximum specification of percentage overshoot $PO = 7.5$\% and p
 \newpage
 \section{Appendix}
 \subsection{Linearisation of 2DOF Quanser Aero Model}\label{app:linearise}
+
+\subsection{PID Simulink Model}\label{W4PIDsim}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=15cm]{W4PIDsim.png}
+    \caption{Simulink model used to simulate our decoupled PID (PIV) controller}
+    \label{fig:W4PIDsim}
+\end{figure}
 
 \end{document}
